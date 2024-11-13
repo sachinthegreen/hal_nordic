@@ -374,6 +374,11 @@ enum nrf_wifi_status nrf_wifi_fmac_set_packet_filter(void *dev_ctx, unsigned cha
  */
 enum nrf_wifi_status nrf_wifi_fmac_stats_reset(struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx);
 
+enum nrf_wifi_status nrf_wifi_fmac_memtest(struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx,
+					   unsigned int mem_area,
+					   unsigned int num_times);
+
+
 /**
  * @}
  */

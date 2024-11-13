@@ -1273,3 +1273,134 @@ out:
 	return status;
 }
 #endif /* !NRF70_OFFLOADED_RAW_TX */
+
+enum nrf_wifi_status nrf_wifi_fmac_memtest(struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx,
+					   unsigned int mem_area,
+					   unsigned int num_times)
+{
+	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
+	unsigned int addr = 0;
+	unsigned int val = 0;
+	unsigned int i = 0;
+	unsigned int init_val = 0;
+	unsigned int retry_count = 0;
+	unsigned int retry1_count = 0;
+
+	while (1) {
+		nrf_wifi_osal_log_info("%s: Memory test iteration %d",
+				       __func__,
+				       i + 1);
+
+		for (addr = RPU_ADDR_PKTRAM_START; addr < RPU_ADDR_PKTRAM_END; addr += 4) {
+			status = hal_rpu_mem_write(fmac_dev_ctx->hal_dev_ctx,
+						   addr,
+						   &init_val,
+						   sizeof(init_val));
+			if (status != NRF_WIFI_STATUS_SUCCESS) {
+				nrf_wifi_osal_log_err("%s: Memory write failed at address 0x%x",
+						      __func__,
+						      addr);
+				goto out;
+			}
+		}
+
+		addr = RPU_ADDR_PKTRAM_START;
+		status = hal_rpu_mem_write(fmac_dev_ctx->hal_dev_ctx,
+					   addr,
+					   &addr,
+					   sizeof(addr));
+		if (status != NRF_WIFI_STATUS_SUCCESS) {
+			nrf_wifi_osal_log_err("%s: Memory write failed at address 0x%x",
+					      __func__,
+					      addr);
+			goto out;
+		}
+
+		for (addr = RPU_ADDR_PKTRAM_START + 4; addr < RPU_ADDR_PKTRAM_END; addr += 4) {
+			status = hal_rpu_mem_write(fmac_dev_ctx->hal_dev_ctx,
+						   addr,
+						   &addr,
+						   sizeof(addr));
+			if (status != NRF_WIFI_STATUS_SUCCESS) {
+				nrf_wifi_osal_log_err("%s: Memory write failed at address 0x%x",
+						      __func__,
+						      addr);
+				goto out;
+			}
+
+			retry_count = 0;
+
+retry:
+			status = hal_rpu_mem_read(fmac_dev_ctx->hal_dev_ctx,
+						  &val,
+						  addr - 4,
+						  sizeof(val));
+			if (status != NRF_WIFI_STATUS_SUCCESS) {
+				nrf_wifi_osal_log_err("%s: Memory read failed at address 0x%x",
+						      __func__,
+						      addr);
+				goto out;
+			}
+
+			if (val != (addr - 4)) {
+				nrf_wifi_osal_log_err("%s: Memory read value (0x%X) mismatch at address 0x%X",
+						      __func__,
+						      val,
+						      addr);
+				/* Try again */
+				if (retry_count++ < 1) {
+					nrf_wifi_osal_log_info("%s: Retrying",
+							       __func__);
+					goto retry;
+				}
+
+				status = NRF_WIFI_STATUS_FAIL;
+				goto out;
+			}
+
+			val = 0;
+		}
+
+		retry1_count = 0;
+retry1:
+		status = hal_rpu_mem_read(fmac_dev_ctx->hal_dev_ctx,
+					  &val,
+					  addr - 4,
+					  sizeof(val));
+		if (status != NRF_WIFI_STATUS_SUCCESS) {
+			nrf_wifi_osal_log_err("%s: Memory1 read failed at address 0x%x",
+					      __func__,
+					      addr);
+			goto out;
+		}
+
+		if (val != (addr - 4)) {
+			nrf_wifi_osal_log_err("%s: Memory1 read value (0x%X) mismatch at address 0x%X",
+					      __func__,
+					      val,
+					      addr);
+			/* Try again */
+			if (retry1_count++ < 1) {
+				nrf_wifi_osal_log_info("%s: Retrying",
+						       __func__);
+				goto retry1;
+			}
+			status = NRF_WIFI_STATUS_FAIL;
+			goto out;
+		}
+
+		val = 0;
+
+		i++;
+
+		if (num_times) {
+			if (i >= num_times) {
+				break;
+			}
+		}
+	}
+
+	status = NRF_WIFI_STATUS_SUCCESS;
+out:
+	return status;
+}
